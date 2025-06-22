@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -64,17 +63,23 @@ import {
   Hash,
   AtSign,
   Percent,
-  DollarSign
+  DollarSign,
+  Table as TableIcon,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Outdent
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import type { Editor } from '@tiptap/react';
 
 interface WordToolbarProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onImportDocument: (content: string) => void;
+  editor?: Editor;
 }
 
-const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen, onImportDocument }) => {
+const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen, onImportDocument, editor }) => {
   const [activeTab, setActiveTab] = useState('Home');
   const [fontSize, setFontSize] = useState('11');
   const [fontFamily, setFontFamily] = useState('Calibri');
@@ -89,32 +94,46 @@ const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen,
   const lineSpacings = ['1.0', '1.15', '1.5', '2.0', '2.5', '3.0'];
 
   const handleFormatting = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
-  };
-
-  const handleInsertTable = () => {
-    const table = document.createElement('table');
-    table.style.borderCollapse = 'collapse';
-    table.style.width = '100%';
-    table.innerHTML = `
-      <tr>
-        <td style="border: 1px solid #000; padding: 8px;">Cell 1</td>
-        <td style="border: 1px solid #000; padding: 8px;">Cell 2</td>
-      </tr>
-      <tr>
-        <td style="border: 1px solid #000; padding: 8px;">Cell 3</td>
-        <td style="border: 1px solid #000; padding: 8px;">Cell 4</td>
-      </tr>
-    `;
-    
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.insertNode(table);
+    if (!editor) return;
+    switch (command) {
+      case 'bold':
+        editor.chain().focus().toggleBold().run();
+        break;
+      case 'italic':
+        editor.chain().focus().toggleItalic().run();
+        break;
+      case 'underline':
+        editor.chain().focus().toggleUnderline().run();
+        break;
+      case 'undo':
+        editor.chain().focus().undo().run();
+        break;
+      case 'redo':
+        editor.chain().focus().redo().run();
+        break;
+      case 'insertUnorderedList':
+        editor.chain().focus().toggleBulletList().run();
+        break;
+      case 'insertOrderedList':
+        editor.chain().focus().toggleOrderedList().run();
+        break;
+      case 'selectAll':
+        editor.chain().focus().selectAll().run();
+        break;
+      case 'createLink':
+        editor.chain().focus().setLink({ href: value }).run();
+        break;
+      default:
+        break;
     }
   };
 
+  const handleInsertTable = () => {
+    if (editor) editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  };
+
   const handleInsertImage = () => {
+    if (!editor) return;
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -123,21 +142,20 @@ const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen,
       if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          const img = document.createElement('img');
-          img.src = event.target?.result as string;
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            range.insertNode(img);
-          }
+          editor.chain().focus().setImage({ src: event.target?.result as string }).run();
         };
         reader.readAsDataURL(file);
       }
     };
     input.click();
+  };
+
+  const handleInsertLink = () => {
+    if (!editor) return;
+    const url = prompt('Enter the URL:');
+    if (url) {
+      editor.chain().focus().setLink({ href: url }).run();
+    }
   };
 
   const handleImportWordDocument = async () => {
@@ -169,13 +187,11 @@ const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen,
   const handleFind = () => {
     const searchTerm = prompt('Find:');
     if (searchTerm) {
-      // Use modern approach instead of deprecated window.find
       const range = document.createRange();
       const selection = window.getSelection();
       if (selection) {
         selection.removeAllRanges();
         if (document.body.innerText.includes(searchTerm)) {
-          // Simple text search implementation
           const walker = document.createTreeWalker(
             document.body,
             NodeFilter.SHOW_TEXT,
@@ -196,6 +212,10 @@ const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen,
         }
       }
     }
+  };
+
+  const handleUnderline = () => {
+    if (editor) editor.chain().focus().toggleUnderline().run();
   };
 
   return (
@@ -326,269 +346,106 @@ const WordToolbar: React.FC<WordToolbarProps> = ({ onToggleSidebar, sidebarOpen,
 
         {/* Home Tab */}
         {activeTab === 'Home' && (
-          <div className="flex items-start gap-4 p-4">
-            {/* Clipboard */}
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-12 p-1" onClick={() => handleFormatting('paste')}>
-                  <ClipboardPaste className="h-5 w-5" />
-                  <span className="text-xs">Paste</span>
-                </Button>
-                <div className="flex flex-col gap-1">
-                  <Button variant="ghost" size="sm" className="h-6 w-8 p-0 text-xs" onClick={() => handleFormatting('cut')}>
-                    <Scissors className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 w-8 p-0 text-xs" onClick={() => handleFormatting('copy')}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-              <span className="text-xs text-gray-600 text-center">Clipboard</span>
-            </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Font */}
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2 mb-1">
-                <select 
-                  className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
+          <div className="flex items-start p-2 gap-4">
+            <div className="flex flex-col items-center">
+              <div className="flex border rounded-sm overflow-hidden mb-1">
+                <select
+                  className="px-2 py-0.5 text-xs border-r"
                   value={fontFamily}
                   onChange={(e) => {
                     setFontFamily(e.target.value);
                     handleFormatting('fontName', e.target.value);
                   }}
                 >
-                  {fontFamilies.map(font => (
-                    <option key={font} value={font}>{font}</option>
-                  ))}
+                  {fontFamilies.map(font => <option key={font} value={font}>{font}</option>)}
                 </select>
-                <select 
-                  className="border border-gray-300 rounded px-2 py-1 text-sm w-12"
+                <select
+                  className="px-2 py-0.5 text-xs"
                   value={fontSize}
                   onChange={(e) => {
                     setFontSize(e.target.value);
                     handleFormatting('fontSize', e.target.value);
                   }}
                 >
-                  {fontSizes.map(size => (
-                    <option key={size} value={size}>{size}</option>
-                  ))}
+                  {fontSizes.map(size => <option key={size} value={size}>{size}</option>)}
                 </select>
               </div>
-              <div className="flex items-center gap-1 mb-2">
+              <div className="flex gap-1">
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('bold')}>
                   <Bold className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('italic')}>
                   <Italic className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('underline')}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={handleUnderline}>
                   <Underline className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('strikeThrough')}>
-                  <Strikethrough className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('subscript')}>
-                  <Subscript className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('superscript')}>
-                  <Superscript className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('hiliteColor', 'yellow')}>
-                  <Highlighter className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('foreColor', 'red')}>
-                  <Palette className="h-4 w-4" />
                 </Button>
               </div>
               <span className="text-xs text-gray-600 text-center">Font</span>
             </div>
-            <Separator orientation="vertical" className="h-16" />
 
-            {/* Paragraph */}
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1 mb-1">
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('insertUnorderedList')}>
-                  <List className="h-4 w-4" />
-                </Button>
+            <div className="flex flex-col items-center">
+              <div className="flex gap-1 mb-1">
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('insertOrderedList')}>
                   <ListOrdered className="h-4 w-4" />
                 </Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('insertUnorderedList')}>
+                  <List className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('outdent')}>
-                  <Indent className="h-4 w-4 rotate-180" />
+                  <Outdent className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('indent')}>
                   <Indent className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('justifyLeft')}>
+              <div className="flex items-center gap-1 ml-4 border-l pl-2">
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Align Left">
                   <AlignLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('justifyCenter')}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => editor?.chain().focus().setTextAlign('center').run()} title="Align Center">
                   <AlignCenter className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('justifyRight')}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Align Right">
                   <AlignRight className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleFormatting('justifyFull')}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => editor?.chain().focus().setTextAlign('justify').run()} title="Align Justify">
                   <AlignJustify className="h-4 w-4" />
                 </Button>
-                <select 
-                  className="border border-gray-300 rounded px-1 py-0 text-xs w-12 h-6"
-                  value={lineSpacing}
-                  onChange={(e) => setLineSpacing(e.target.value)}
-                >
-                  {lineSpacings.map(spacing => (
-                    <option key={spacing} value={spacing}>{spacing}</option>
-                  ))}
-                </select>
               </div>
               <span className="text-xs text-gray-600 text-center">Paragraph</span>
-            </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Styles */}
-            <div className="flex flex-col">
-              <div className="grid grid-cols-2 gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="text-xs px-2 py-1 h-6" onClick={() => handleFormatting('formatBlock', 'p')}>Normal</Button>
-                <Button variant="ghost" size="sm" className="text-xs px-2 py-1 h-6" onClick={() => handleFormatting('formatBlock', 'h1')}>Heading 1</Button>
-                <Button variant="ghost" size="sm" className="text-xs px-2 py-1 h-6" onClick={() => handleFormatting('formatBlock', 'h2')}>Heading 2</Button>
-                <Button variant="ghost" size="sm" className="text-xs px-2 py-1 h-6" onClick={() => handleFormatting('formatBlock', 'h3')}>Heading 3</Button>
-              </div>
-              <span className="text-xs text-gray-600 text-center">Styles</span>
-            </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Editing */}
-            <div className="flex flex-col">
-              <div className="flex gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-12 p-1" onClick={handleFind}>
-                  <Search className="h-4 w-4" />
-                  <span className="text-xs">Find</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-12 p-1" onClick={() => {
-                  const findText = prompt('Find:');
-                  const replaceText = prompt('Replace with:');
-                  if (findText && replaceText) {
-                    handleFormatting('selectAll');
-                    const content = document.getSelection()?.toString() || '';
-                    const newContent = content.replace(new RegExp(findText, 'g'), replaceText);
-                    handleFormatting('insertText', newContent);
-                  }
-                }}>
-                  <Replace className="h-4 w-4" />
-                  <span className="text-xs">Replace</span>
-                </Button>
-              </div>
-              <span className="text-xs text-gray-600 text-center">Editing</span>
             </div>
           </div>
         )}
 
         {/* Insert Tab */}
         {activeTab === 'Insert' && (
-          <div className="flex items-start gap-4 p-4">
-            {/* Pages */}
-            <div className="flex flex-col">
-              <div className="flex gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1" onClick={() => {
-                  const pageBreak = document.createElement('div');
-                  pageBreak.style.pageBreakBefore = 'always';
-                  pageBreak.innerHTML = '<br>';
-                  const selection = window.getSelection();
-                  if (selection && selection.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    range.insertNode(pageBreak);
-                  }
-                }}>
-                  <FileType className="h-4 w-4" />
-                  <span className="text-xs">Page Break</span>
-                </Button>
-              </div>
-              <span className="text-xs text-gray-600 text-center">Pages</span>
-            </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Tables */}
-            <div className="flex flex-col">
+          <div className="flex items-start p-2 gap-4">
+            <div className="flex flex-col items-center">
               <div className="flex gap-1 mb-2">
                 <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1" onClick={handleInsertTable}>
-                  <Table className="h-4 w-4" />
+                  <TableIcon className="h-4 w-4" />
                   <span className="text-xs">Table</span>
                 </Button>
               </div>
-              <span className="text-xs text-gray-600 text-center">Tables</span>
             </div>
-            <Separator orientation="vertical" className="h-16" />
-            
-            {/* Illustrations */}
-            <div className="flex flex-col">
+            <div className="flex flex-col items-center">
               <div className="flex gap-1 mb-2">
                 <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1" onClick={handleInsertImage}>
-                  <Image className="h-4 w-4" />
+                  <ImageIcon className="h-4 w-4" />
                   <span className="text-xs">Picture</span>
                 </Button>
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1">
-                  <Square className="h-4 w-4" />
-                  <span className="text-xs">Shapes</span>
-                </Button>
               </div>
-              <span className="text-xs text-gray-600 text-center">Illustrations</span>
             </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Links */}
-            <div className="flex flex-col">
-              <div className="flex gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1" onClick={() => {
-                  const url = prompt('Enter URL:');
-                  const text = prompt('Enter link text:');
-                  if (url && text) {
-                    handleFormatting('createLink', url);
-                  }
-                }}>
-                  <Link className="h-4 w-4" />
-                  <span className="text-xs">Link</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1">
-                  <Bookmark className="h-4 w-4" />
-                  <span className="text-xs">Bookmark</span>
-                </Button>
+            <div className="flex flex-col items-center">
+              <div className="flex flex-col">
+                <div className="flex gap-1 mb-2">
+                  <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1" onClick={handleInsertLink}>
+                    <LinkIcon className="h-4 w-4" />
+                    <span className="text-xs">Link</span>
+                  </Button>
+                </div>
               </div>
-              <span className="text-xs text-gray-600 text-center">Links</span>
-            </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Header & Footer */}
-            <div className="flex flex-col">
-              <div className="flex gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1">
-                  <FileImage className="h-4 w-4" />
-                  <span className="text-xs">Header</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1">
-                  <FileType className="h-4 w-4" />
-                  <span className="text-xs">Footer</span>
-                </Button>
-              </div>
-              <span className="text-xs text-gray-600 text-center">Header & Footer</span>
-            </div>
-            <Separator orientation="vertical" className="h-16" />
-
-            {/* Symbols */}
-            <div className="flex flex-col">
-              <div className="flex gap-1 mb-2">
-                <Button variant="ghost" size="sm" className="flex flex-col items-center h-12 w-16 p-1" onClick={() => {
-                  const symbols = ['©', '®', '™', '§', '¶', '†', '‡', '•', '…', '€', '£', '¥', '¢'];
-                  const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-                  handleFormatting('insertText', symbol);
-                }}>
-                  <Hash className="h-4 w-4" />
-                  <span className="text-xs">Symbol</span>
-                </Button>
-              </div>
-              <span className="text-xs text-gray-600 text-center">Symbols</span>
             </div>
           </div>
         )}

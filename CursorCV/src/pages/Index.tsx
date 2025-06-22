@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import WordToolbar from '../components/WordToolbar';
 import WordRuler from '../components/WordRuler';
 import WordDocument from '../components/WordDocument';
@@ -27,6 +26,7 @@ const Index = () => {
       timestamp: new Date()
     }
   ]);
+  const [editorInstance, setEditorInstance] = useState<any>(null); // Tiptap Editor instance
 
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
@@ -71,6 +71,7 @@ const Index = () => {
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
         sidebarOpen={sidebarOpen}
         onImportDocument={handleImportDocument}
+        editor={editorInstance}
       />
       
       <div className="flex flex-1 overflow-hidden">
@@ -80,6 +81,7 @@ const Index = () => {
           <WordDocument 
             content={documentContent} 
             onChange={setDocumentContent}
+            setEditor={setEditorInstance}
           />
         </div>
 
